@@ -13,26 +13,35 @@ class SynthWindow < Gosu::Window
     'K' => 'C'
   }
   CHROMATIC = %w[C C# D D# E F F# G G# A A# B]
+  CHORDS = [
+    {name: 'Imaj7', tones: %w[C E G B]},
+    {name: 'iim7', tones: %w[D F A C]},
+    {name: 'iiim7', tones: %w[E G B D]},
+    {name: 'IVmaj7', tones: %w[F A C E]},
+    {name: 'V7', tones: %w[G B D F]},
+    {name: 'vim7', tones: %w[A C E G]},
+    {name: 'viim7b5', tones: %w[B D F A]}
+  ]
 
   def initialize
     super(600, 300)
-    self.caption = "Ruby Synth - Chromatic Wheel"
+    self.caption = "Ruby Synth - Chord & Chromatic Wheel"
     @sounds = {}
     NOTE_KEYS.each do |key, _|
       @sounds[key] = Gosu::Sample.new("sounds/#{key}.wav")
     end
     @pressed = {}
+    @chord_pressed = nil
     @font = Gosu::Font.new(32)
     @small_font = Gosu::Font.new(18)
   end
 
   def draw
-    # Draw background
     Gosu.draw_rect(0, 0, width, height, Gosu::Color::BLACK, 0)
 
-    # Draw left circle (placeholder)
-    draw_circle(width/4, height/2, 80, Gosu::Color::GRAY)
-    @font.draw_text("Left", width/4-30, height/2-20, 1, 1, 1, Gosu::Color::WHITE)
+    # Draw left chord wheel
+    draw_circle(width/4, height/2, 100, Gosu::Color::WHITE)
+    draw_chord_wheel(width/4, height/2, 90)
 
     # Draw right chromatic wheel
     draw_circle(3*width/4, height/2, 100, Gosu::Color::WHITE)
@@ -68,11 +77,38 @@ class SynthWindow < Gosu::Window
     @font.draw_text("Chromatic Wheel", cx-80, cy-120, 2, 1, 1, Gosu::Color::WHITE)
   end
 
-  def note_active?(note)
-    # Map pressed keys to chromatic notes
-    @pressed.keys.any? do |key|
-      NOTE_KEYS[key] == note
+  def draw_chord_wheel(cx, cy, r)
+    n = CHORDS.size
+    CHORDS.each_with_index do |chord, i|
+      angle = (2*Math::PI*i/n) - Math::PI/2
+      x = cx + Math.cos(angle)*r
+      y = cy + Math.sin(angle)*r
+      color = chord_active?(i) ? Gosu::Color::CYAN : Gosu::Color::GRAY
+      Gosu.draw_circle(x, y, 22, color)
+      @small_font.draw_text(chord[:name], x-30, y-10, 2, 1, 1, Gosu::Color::BLACK)
     end
+    @font.draw_text("Chord Wheel", cx-80, cy-120, 2, 1, 1, Gosu::Color::WHITE)
+    # Highlight chord tones on wheel
+    if @chord_pressed
+      chord = CHORDS[@chord_pressed]
+      chord[:tones].each do |note|
+        i = CHROMATIC.index(note)
+        next unless i
+        angle = (2*Math::PI*i/CHROMATIC.size) - Math::PI/2
+        x = cx + Math.cos(angle)*r*0.7
+        y = cy + Math.sin(angle)*r*0.7
+        Gosu.draw_circle(x, y, 12, Gosu::Color::YELLOW)
+        @small_font.draw_text(note, x-8, y-8, 3, 1, 1, Gosu::Color::BLACK)
+      end
+    end
+  end
+
+  def note_active?(note)
+    @pressed.keys.any? { |key| NOTE_KEYS[key] == note }
+  end
+
+  def chord_active?(idx)
+    @chord_pressed == idx
   end
 
   def button_down(id)
@@ -81,11 +117,29 @@ class SynthWindow < Gosu::Window
       @sounds[key].play
       @pressed[key] = true
     end
+    # Chord keys: '1'..'7'
+    if ('1'..'7').include?(key)
+      idx = key.to_i - 1
+      play_chord(idx)
+      @chord_pressed = idx
+    end
   end
 
   def button_up(id)
     key = Gosu.button_id_to_char(id).upcase
     @pressed.delete(key)
+    if ('1'..'7').include?(key)
+      @chord_pressed = nil
+    end
+  end
+
+  def play_chord(idx)
+    chord = CHORDS[idx]
+    return unless chord
+    chord[:tones].each do |note|
+      key = NOTE_KEYS.key(note)
+      @sounds[key].play if key
+    end
   end
 end
 
